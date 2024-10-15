@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "start": "node server.js",
-    "render-postbuild": "prisma generate && npm run build"
+    "render-postbuild": "echo 'Starting render-postbuild' && prisma generate && echo 'Prisma generate complete' && npm run build && echo 'Build complete'"
   },
   "dependencies": {
     "@prisma/client": "^5.10.2",
