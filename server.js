@@ -31,9 +31,74 @@ app.use(async (req, res, next) => {
   }
 });
 
-// ... (keep other routes as they are)
+// Route to check if any user exists
+app.get('/api/users/check', async (req, res) => {
+  try {
+    const userCount = await prisma.user.count();
+    res.json({ exists: userCount > 0 });
+  } catch (error) {
+    console.error('Error checking user existence:', error);
+    res.status(500).json({ error: 'An error occurred while checking user existence' });
+  }
+});
 
-// Updated route for claim creation with improved error handling
+// Route to create the first admin user
+app.post('/api/admin/create', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Check if any user already exists
+    const userCount = await prisma.user.count();
+    if (userCount > 0) {
+      return res.status(400).json({ error: 'Admin user already exists' });
+    }
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create the admin user
+    const newAdmin = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        isAdmin: true,
+      },
+    });
+
+    res.status(201).json({ message: 'Admin user created successfully', userId: newAdmin.id });
+  } catch (error) {
+    console.error('Error creating admin user:', error);
+    res.status(500).json({ error: 'An error occurred while creating the admin user' });
+  }
+});
+
+// Route for user login
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find the user
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid credentials' });
+    }
+
+    // Check password
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ error: 'Invalid credentials' });
+    }
+
+    // Send user info (excluding password)
+    const { password: _, ...userInfo } = user;
+    res.json(userInfo);
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({ error: 'An error occurred during login' });
+  }
+});
+
+// Route for claim creation
 app.post('/api/claims', async (req, res) => {
   console.log('Received claim creation request');
   try {
@@ -64,6 +129,48 @@ app.post('/api/claims', async (req, res) => {
     } else {
       res.status(500).json({ error: 'An error occurred while creating the claim', details: error.message });
     }
+  }
+});
+
+// Route to get a specific claim
+app.get('/api/claims/:id', async (req, res) => {
+  try {
+    const claim = await prisma.claim.findUnique({
+      where: { id: req.params.id },
+    });
+    if (claim) {
+      res.json(claim);
+    } else {
+      res.status(404).json({ error: 'Claim not found' });
+    }
+  } catch (error) {
+    console.error('Error fetching claim:', error);
+    res.status(500).json({ error: 'An error occurred while fetching the claim' });
+  }
+});
+
+// Route to get all claims (for admin dashboard)
+app.get('/api/claims', async (req, res) => {
+  try {
+    const claims = await prisma.claim.findMany();
+    res.json(claims);
+  } catch (error) {
+    console.error('Error fetching claims:', error);
+    res.status(500).json({ error: 'An error occurred while fetching claims' });
+  }
+});
+
+// Route to update claim status
+app.patch('/api/claims/:id', async (req, res) => {
+  try {
+    const updatedClaim = await prisma.claim.update({
+      where: { id: req.params.id },
+      data: { status: req.body.status },
+    });
+    res.json(updatedClaim);
+  } catch (error) {
+    console.error('Error updating claim:', error);
+    res.status(500).json({ error: 'An error occurred while updating the claim' });
   }
 });
 
